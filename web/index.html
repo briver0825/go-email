@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Inbox</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: #333; height: 100vh; display: flex; flex-direction: column; }
+
+  .topbar { background: #1e293b; color: #fff; padding: 0 24px; height: 52px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .topbar h1 { font-size: 18px; font-weight: 600; }
+  .topbar .stats { font-size: 13px; color: #94a3b8; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* List */
+  .sidebar { width: 400px; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 14px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+  .sidebar-header h3 { font-size: 15px; }
+  .btn { background: none; border: 1px solid #cbd5e1; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .btn:hover { background: #f8fafc; }
+  .email-list { flex: 1; overflow-y: auto; }
+  .email-item { padding: 12px 16px; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background .1s; }
+  .email-item:hover { background: #f8fafc; }
+  .email-item.active { background: #eff6ff; border-left: 3px solid #3b82f6; }
+  .email-item .from { font-weight: 600; font-size: 13px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .email-item .subject { font-size: 13px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .email-item .meta { font-size: 11px; color: #94a3b8; margin-top: 3px; display: flex; justify-content: space-between; }
+  .empty { padding: 40px; text-align: center; color: #94a3b8; font-size: 14px; }
+  .pagination { padding: 10px 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: center; gap: 8px; }
+  .pagination button { padding: 4px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; cursor: pointer; font-size: 12px; }
+  .pagination button:disabled { opacity: .4; cursor: default; }
+  .pagination button:hover:not(:disabled) { background: #f1f5f9; }
+  .pagination span { font-size: 12px; color: #64748b; line-height: 28px; }
+
+  /* Detail */
+  .content { flex: 1; background: #fff; display: flex; flex-direction: column; overflow: hidden; }
+  .content-placeholder { flex: 1; display: flex; justify-content: center; align-items: center; color: #94a3b8; font-size: 15px; }
+
+  .detail { flex: 1; overflow-y: auto; display: none; }
+  .detail-header { padding: 24px 28px 16px; border-bottom: 1px solid #e2e8f0; }
+  .detail-header .subject { font-size: 20px; font-weight: 600; margin-bottom: 12px; }
+  .detail-header .info { font-size: 13px; color: #64748b; line-height: 1.8; }
+  .detail-header .info strong { color: #334155; }
+  .detail-body { padding: 20px 28px; }
+  .detail-body .text-body { font-size: 14px; line-height: 1.7; white-space: pre-wrap; }
+  .detail-body .html-body { font-size: 14px; line-height: 1.6; }
+  .detail-body .html-body iframe { width: 100%; border: 1px solid #e2e8f0; border-radius: 6px; min-height: 300px; }
+  .tab-bar { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 1px solid #e2e8f0; }
+  .tab { padding: 8px 20px; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent; color: #64748b; }
+  .tab.active { color: #3b82f6; border-bottom-color: #3b82f6; }
+  .tab:hover { color: #3b82f6; }
+
+  .attachments { padding: 0 28px 20px; }
+  .attachments h4 { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+  .att-item { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #f1f5f9; border-radius: 6px; font-size: 12px; margin-right: 8px; margin-bottom: 6px; text-decoration: none; color: #334155; }
+  .att-item:hover { background: #e2e8f0; }
+  .att-size { color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Email Inbox</h1>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h3>All Emails</h3>
+      <button class="btn" onclick="loadEmails()">Refresh</button>
+    </div>
+    <div class="email-list" id="emailList">
+      <div class="empty">Loading...</div>
+    </div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <div class="content">
+    <div class="content-placeholder" id="placeholder">Select an email to view</div>
+    <div class="detail" id="detail">
+      <div class="detail-header">
+        <div class="subject" id="dSubject"></div>
+        <div class="info">
+          <div>From: <strong id="dFrom"></strong></div>
+          <div>To: <strong id="dTo"></strong></div>
+          <div id="dCcRow" style="display:none">Cc: <strong id="dCc"></strong></div>
+          <div>Date: <span id="dDate"></span></div>
+          <div>Message-ID: <span id="dMsgId" style="font-size:11px;color:#94a3b8"></span></div>
+        </div>
+      </div>
+      <div class="attachments" id="attSection" style="display:none">
+        <h4>Attachments</h4>
+        <div id="attList"></div>
+      </div>
+      <div class="detail-body">
+        <div class="tab-bar" id="tabBar">
+          <div class="tab active" onclick="showTab('text')">Text</div>
+          <div class="tab" onclick="showTab('html')">HTML</div>
+        </div>
+        <div id="textPanel" class="text-body"></div>
+        <div id="htmlPanel" class="html-body" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentPage = 1;
+const pageSize = 20;
+
+async function loadEmails(page) {
+  if (page) currentPage = page;
+  const res = await fetch(`/api/emails?page=${currentPage}&size=${pageSize}`);
+  const data = await res.json();
+
+  document.getElementById('stats').textContent = `Total: ${data.total} emails`;
+
+  const list = document.getElementById('emailList');
+  const emails = data.emails || [];
+
+  if (emails.length === 0) {
+    list.innerHTML = '<div class="empty">No emails yet. Waiting for IMAP fetch...</div>';
+  } else {
+    list.innerHTML = emails.map(e => `
+      <div class="email-item" onclick="loadEmail(${e.ID})" id="item-${e.ID}">
+        <div class="from">${esc(e.FromName || e.FromAddr)}</div>
+        <div class="subject">${esc(e.Subject || '(no subject)')}</div>
+        <div class="meta">
+          <span>${esc(e.FromAddr)}</span>
+          <span>${formatDate(e.RecvDate)}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // Pagination
+  const totalPages = Math.ceil(data.total / pageSize);
+  const pag = document.getElementById('pagination');
+  if (totalPages > 1) {
+    pag.innerHTML = `
+      <button onclick="loadEmails(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>Prev</button>
+      <span>${currentPage} / ${totalPages}</span>
+      <button onclick="loadEmails(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>Next</button>
+    `;
+  } else {
+    pag.innerHTML = '';
+  }
+}
+
+async function loadEmail(id) {
+  document.querySelectorAll('.email-item').forEach(el => el.classList.remove('active'));
+  const item = document.getElementById('item-' + id);
+  if (item) item.classList.add('active');
+
+  const res = await fetch(`/api/email/${id}`);
+  const data = await res.json();
+  const e = data.email;
+  const atts = data.attachments || [];
+
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('detail').style.display = 'block';
+
+  document.getElementById('dSubject').textContent = e.Subject || '(no subject)';
+  document.getElementById('dFrom').textContent = e.FromName ? `${e.FromName} <${e.FromAddr}>` : e.FromAddr;
+  document.getElementById('dTo').textContent = e.ToAddr;
+  document.getElementById('dDate').textContent = formatDate(e.RecvDate);
+  document.getElementById('dMsgId').textContent = e.MessageID || '';
+
+  if (e.CcAddr) {
+    document.getElementById('dCcRow').style.display = 'block';
+    document.getElementById('dCc').textContent = e.CcAddr;
+  } else {
+    document.getElementById('dCcRow').style.display = 'none';
+  }
+
+  document.getElementById('textPanel').textContent = e.TextBody || '(no text content)';
+
+  if (e.HTMLBody) {
+    const iframe = document.createElement('iframe');
+    iframe.sandbox = 'allow-same-origin';
+    document.getElementById('htmlPanel').innerHTML = '';
+    document.getElementById('htmlPanel').appendChild(iframe);
+    iframe.srcdoc = e.HTMLBody;
+    iframe.onload = () => { iframe.style.height = iframe.contentDocument.body.scrollHeight + 20 + 'px'; };
+  } else {
+    document.getElementById('htmlPanel').innerHTML = '<span style="color:#94a3b8">(no HTML content)</span>';
+  }
+
+  // Attachments
+  if (atts.length > 0) {
+    document.getElementById('attSection').style.display = 'block';
+    document.getElementById('attList').innerHTML = atts.map(a =>
+      `<a class="att-item" href="/api/attachment/${a.id}" target="_blank">
+        ${esc(a.filename)} <span class="att-size">(${formatSize(a.size)})</span>
+      </a>`
+    ).join('');
+  } else {
+    document.getElementById('attSection').style.display = 'none';
+  }
+
+  showTab('text');
+}
+
+function showTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  if (tab === 'text') {
+    document.getElementById('textPanel').style.display = 'block';
+    document.getElementById('htmlPanel').style.display = 'none';
+    document.querySelectorAll('.tab')[0].classList.add('active');
+  } else {
+    document.getElementById('textPanel').style.display = 'none';
+    document.getElementById('htmlPanel').style.display = 'block';
+    document.querySelectorAll('.tab')[1].classList.add('active');
+  }
+}
+
+function formatDate(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  if (isNaN(d)) return s;
+  return d.toLocaleString('zh-CN');
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+loadEmails();
+</script>
+</body>
+</html>

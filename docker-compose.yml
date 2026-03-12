@@ -1,0 +1,56 @@
+services:
+  # docker-mailserver: receives external emails via SMTP, provides IMAP access
+  mailserver:
+    image: ghcr.io/docker-mailserver/docker-mailserver:latest
+    container_name: mailserver
+    hostname: mail.example.com          # Change to your domain
+    ports:
+      - "25:25"       # SMTP (receive from external)
+      - "587:587"     # SMTP submission (send with auth)
+      - "143:143"     # IMAP
+      - "993:993"     # IMAPS
+    volumes:
+      - maildata:/var/mail
+      - mailstate:/var/mail-state
+      - maillogs:/var/log/mail
+      - ./docker-data/mailserver/config/:/tmp/docker-mailserver/
+    environment:
+      - ENABLE_SPAMASSASSIN=0
+      - ENABLE_CLAMAV=0
+      - ENABLE_FAIL2BAN=0
+      - ENABLE_POSTGREY=0
+      - ENABLE_SASLAUTHD=0
+      - ONE_DIR=1
+      - SSL_TYPE=
+      - PERMIT_DOCKER=network
+      - OVERRIDE_HOSTNAME=mail.example.com   # Change to your domain
+    restart: unless-stopped
+
+  # Go email reader: polls IMAP, stores to SQLite, serves Web UI
+  email-app:
+    build: .
+    container_name: email-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - appdata:/data
+    environment:
+      - IMAP_HOST=mailserver
+      - IMAP_PORT=143
+      - IMAP_USER=user@example.com       # Must match the account created in mailserver
+      - IMAP_PASS=password               # Must match the account password
+      - IMAP_TLS=false
+      - IMAP_MAILBOX=INBOX
+      - HTTP_ADDR=:8080
+      - DB_PATH=/data/emails.db
+      - ATTACHMENT_DIR=/data/attachments
+      - POLL_INTERVAL=30
+    depends_on:
+      - mailserver
+    restart: unless-stopped
+
+volumes:
+  maildata:
+  mailstate:
+  maillogs:
+  appdata:

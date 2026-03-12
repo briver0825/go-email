@@ -1,0 +1,10 @@
+emails.db
+attachments/
+docker-data/
+*.db
+.git
+.gitignore
+setup.sh
+docker-compose.yml
+Dockerfile
+.dockerignore
